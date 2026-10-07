@@ -1,0 +1,25 @@
+# Local editor settings
+.vscode/
+.idea/
+
+# Flutter/Dart build output and caches
+.dart_tool/
+.gradle-cache/
+.tmp/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Generated/local machine files
+*.log
+hs_err_pid*.log
+replay_pid*.log
+local.properties
+
+# Platform ephemeral output
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+# Misc
+*.iml
+.DS_Store
