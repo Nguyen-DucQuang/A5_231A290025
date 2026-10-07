@@ -1,19 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 void main() {
-  // Điểm bắt đầu của ứng dụng Flutter.
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _darkMode = false;
+
+  void _setDarkMode(bool value) {
+    setState(() => _darkMode = value);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lab A5',
+      title: 'Lab A6',
       debugShowCheckedModeBanner: false,
+      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF006C67),
@@ -24,171 +34,190 @@ class MyApp extends StatelessWidget {
           border: OutlineInputBorder(),
         ),
       ),
-      home: const LabA5Page(),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF4DB6AC),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+        ),
+      ),
+      home: LabA6Page(darkMode: _darkMode, onDarkModeChanged: _setDarkMode),
     );
   }
 }
 
-class Contact {
-  // Model lưu thông tin liên hệ. Trong Lab A5, đối tượng này đóng vai trò
-  // dữ liệu được truyền từ màn hình 1 sang màn hình 2.
-  const Contact({
+class CourseRegistration {
+  const CourseRegistration({
     required this.fullName,
-    required this.phone,
-    required this.email,
+    required this.studentId,
+    required this.faculty,
+    required this.course,
+    required this.program,
+    required this.sessions,
+    required this.emailNotification,
+    required this.priorityMode,
   });
 
   final String fullName;
-  final String phone;
-  final String email;
+  final String studentId;
+  final String faculty;
+  final String course;
+  final String program;
+  final List<String> sessions;
+  final bool emailNotification;
+  final bool priorityMode;
 
-  Contact copyWith({String? fullName, String? phone, String? email}) {
-    // Tạo một Contact mới dựa trên Contact hiện tại, chỉ thay các trường cần sửa.
-    // Màn hình 2 dùng hàm này để đổi họ tên rồi trả kết quả về màn hình 1.
-    return Contact(
-      fullName: fullName ?? this.fullName,
-      phone: phone ?? this.phone,
-      email: email ?? this.email,
-    );
+  String get summary {
+    return 'Ho ten: $fullName\n'
+        'MSSV: $studentId\n'
+        'Khoa: $faculty\n'
+        'Hoc phan: $course\n'
+        'He dao tao: $program\n'
+        'Buoi hoc: ${sessions.join(', ')}\n'
+        'Nhan thong bao: ${emailNotification ? 'Co' : 'Khong'}\n'
+        'Che do uu tien: ${priorityMode ? 'Bat' : 'Tat'}';
   }
 }
 
-class LabA5Page extends StatefulWidget {
-  const LabA5Page({super.key});
+class LabA6Page extends StatefulWidget {
+  const LabA6Page({
+    super.key,
+    required this.darkMode,
+    required this.onDarkModeChanged,
+  });
+
+  final bool darkMode;
+  final ValueChanged<bool> onDarkModeChanged;
 
   @override
-  State<LabA5Page> createState() => _LabA5PageState();
+  State<LabA6Page> createState() => _LabA6PageState();
 }
 
-class _LabA5PageState extends State<LabA5Page> {
-  static const _schoolUrl = 'https://vhu.edu.vn';
+class _LabA6PageState extends State<LabA6Page> {
+  static const _studentText = 'Nguyen Duc Quang - MSSV 231A290025';
+  static const _faculties = <String, List<String>>{
+    'Cong nghe thong tin': [
+      'Lap trinh tren cac thiet bi di dong',
+      'Co so du lieu',
+      'Tri tue nhan tao',
+      'Kiem thu phan mem',
+    ],
+    'Kinh te': ['Marketing can ban', 'Quan tri hoc', 'Ke toan dai cuong'],
+    'Ngoai ngu': [
+      'Tieng Anh giao tiep',
+      'Bien phien dich co ban',
+      'Ngu am thuc hanh',
+    ],
+  };
 
-  // MethodChannel là cầu nối từ Flutter sang Android native.
-  // Ba nút Gọi/Web/Chia sẻ sẽ gọi qua channel này để Android mở implicit Intent.
-  static const _intentChannel = MethodChannel('lab_a5/implicit_intents');
-
-  // Controller dùng để đọc/ghi dữ liệu trong các ô nhập liệu.
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
-
-  // FocusNode giúp tự đưa con trỏ về ô đang bị lỗi.
+  final _studentIdController = TextEditingController();
   final _nameFocus = FocusNode();
-  final _phoneFocus = FocusNode();
-  final _emailFocus = FocusNode();
+  final _studentIdFocus = FocusNode();
 
-  String? _nameError;
-  String? _phoneError;
-  String _returnedText = 'Chưa có dữ liệu trả về';
+  late String _selectedFaculty;
+  late String _selectedCourse;
+  String? _program;
+  bool _morning = false;
+  bool _afternoon = false;
+  bool _evening = false;
+  bool _emailNotification = true;
+  bool _priorityMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedFaculty = _faculties.keys.first;
+    _selectedCourse = _coursesForFaculty.first;
+  }
 
   @override
   void dispose() {
-    // Giải phóng controller/focus để tránh rò rỉ bộ nhớ khi màn hình bị hủy.
     _nameController.dispose();
-    _phoneController.dispose();
-    _emailController.dispose();
+    _studentIdController.dispose();
     _nameFocus.dispose();
-    _phoneFocus.dispose();
-    _emailFocus.dispose();
+    _studentIdFocus.dispose();
     super.dispose();
   }
 
-  Contact get _currentContact {
-    // Gom dữ liệu người dùng đang nhập thành một đối tượng Contact.
-    return Contact(
-      fullName: _nameController.text.trim(),
-      phone: _phoneController.text.trim(),
-      email: _emailController.text.trim(),
-    );
+  List<String> get _coursesForFaculty => _faculties[_selectedFaculty]!;
+
+  List<String> get _selectedSessions {
+    return [if (_morning) 'Sang', if (_afternoon) 'Chieu', if (_evening) 'Toi'];
   }
 
-  bool _validateContact({bool requirePhone = false}) {
-    // Xóa lỗi cũ trước khi kiểm tra lại dữ liệu mới.
+  int get _sessionCount => _selectedSessions.length;
+
+  void _onFacultyChanged(String? value) {
+    if (value == null) return;
     setState(() {
-      _nameError = null;
-      _phoneError = null;
+      _selectedFaculty = value;
+      _selectedCourse = _coursesForFaculty.first;
     });
-
-    if (_nameController.text.trim().isEmpty) {
-      setState(() => _nameError = 'Không được để trống');
-      _nameFocus.requestFocus();
-      return false;
-    }
-
-    if (requirePhone && _phoneController.text.trim().isEmpty) {
-      setState(() => _phoneError = 'Không được để trống');
-      _phoneFocus.requestFocus();
-      return false;
-    }
-
-    return true;
   }
 
-  Future<void> _openDetail() async {
-    if (!_validateContact()) return;
+  void _updateSession(VoidCallback update) {
+    setState(update);
+  }
 
-    // Navigator.push mở màn hình 2. Dòng await ở đây sẽ chờ đến khi màn hình 2
-    // pop về, giống ý tưởng "mở Activity và nhận kết quả trả về" trong Android.
-    final updatedContact = await Navigator.of(context).push<Contact>(
+  void _confirm() {
+    final formIsValid = _formKey.currentState!.validate();
+    if (!formIsValid) {
+      if (_nameController.text.trim().isEmpty) {
+        _nameFocus.requestFocus();
+      } else {
+        _studentIdFocus.requestFocus();
+      }
+      return;
+    }
+
+    if (_program == null) {
+      _showMessage('Vui long chon he dao tao');
+      return;
+    }
+
+    if (_selectedSessions.isEmpty) {
+      _showMessage('Vui long chon it nhat mot buoi hoc');
+      return;
+    }
+
+    final registration = CourseRegistration(
+      fullName: _nameController.text.trim(),
+      studentId: _studentIdController.text.trim(),
+      faculty: _selectedFaculty,
+      course: _selectedCourse,
+      program: _program!,
+      sessions: _selectedSessions,
+      emailNotification: _emailNotification,
+      priorityMode: _priorityMode,
+    );
+
+    Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) =>
-            DetailPage(contact: _currentContact, sender: 'A5_Flutter'),
+        builder: (_) => ConfirmPage(registration: registration),
       ),
     );
+  }
 
-    if (!mounted) return;
-
+  void _reset() {
+    _formKey.currentState?.reset();
     setState(() {
-      if (updatedContact == null) {
-        _returnedText = 'Người dùng đã hủy, không có dữ liệu trả về';
-      } else {
-        _nameController.text = updatedContact.fullName;
-        _phoneController.text = updatedContact.phone;
-        _emailController.text = updatedContact.email;
-        _returnedText = 'Màn hình 2 trả về: ${updatedContact.fullName}';
-      }
+      _nameController.clear();
+      _studentIdController.clear();
+      _selectedFaculty = _faculties.keys.first;
+      _selectedCourse = _coursesForFaculty.first;
+      _program = null;
+      _morning = false;
+      _afternoon = false;
+      _evening = false;
+      _emailNotification = true;
+      _priorityMode = false;
     });
-  }
-
-  Future<void> _callPhone() async {
-    if (!_validateContact(requirePhone: true)) return;
-
-    // Gửi yêu cầu sang Android để mở ACTION_DIAL với số điện thoại đã nhập.
-    await _invokeImplicitIntent('dial', {
-      'phone': _phoneController.text.trim(),
-    });
-  }
-
-  Future<void> _openSchoolWebsite() async {
-    // Gửi yêu cầu sang Android để mở ACTION_VIEW với URL của trường.
-    await _invokeImplicitIntent('web', {'url': _schoolUrl});
-  }
-
-  Future<void> _shareContact() async {
-    if (!_validateContact()) return;
-
-    // Gửi yêu cầu sang Android để mở ACTION_SEND và hiện bảng chọn ứng dụng chia sẻ.
-    await _invokeImplicitIntent('share', {
-      'subject': 'Thông tin liên hệ',
-      'text':
-          'Liên hệ: ${_nameController.text.trim()} - ${_phoneController.text.trim()}',
-    });
-  }
-
-  Future<void> _invokeImplicitIntent(
-    String method,
-    Map<String, String> arguments,
-  ) async {
-    try {
-      // method là tên hành động native cần gọi: dial, web hoặc share.
-      // arguments là dữ liệu gửi kèm, tương tự extras trong Intent.
-      await _intentChannel.invokeMethod<void>(method, arguments);
-    } on PlatformException {
-      // Android native sẽ trả lỗi nếu máy/emulator không có ứng dụng xử lý Intent.
-      if (mounted) {
-        _showMessage('Máy chưa có ứng dụng phù hợp để mở');
-      }
-    }
+    _nameFocus.requestFocus();
   }
 
   void _showMessage(String message) {
@@ -200,107 +229,206 @@ class _LabA5PageState extends State<LabA5Page> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lab A5 - Danh bạ mini')),
+      appBar: AppBar(title: const Text('Lab A6 - Dang ky hoc phan')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Lab A5 - Danh bạ mini',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Chuyển màn hình và truyền dữ liệu',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 24),
-            _sectionTitle(context, '1. Thông tin liên hệ'),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('nameField'),
-              controller: _nameController,
-              focusNode: _nameFocus,
-              decoration: InputDecoration(
-                labelText: 'Họ và tên',
-                errorText: _nameError,
-              ),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('phoneField'),
-              controller: _phoneController,
-              focusNode: _phoneFocus,
-              decoration: InputDecoration(
-                labelText: 'Số điện thoại',
-                errorText: _phoneError,
-              ),
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('emailField'),
-              controller: _emailController,
-              focusNode: _emailFocus,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.done,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              key: const Key('openDetailButton'),
-              onPressed: _openDetail,
-              icon: const Icon(Icons.open_in_new),
-              label: const Text('Xem chi tiết (mở màn hình 2)'),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _returnedText,
-              key: const Key('returnedText'),
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 28),
-            _sectionTitle(context, '2. Intent ngầm định'),
-            const SizedBox(height: 12),
-            Row(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('callButton'),
-                    onPressed: _callPhone,
-                    icon: const Icon(Icons.call_outlined),
-                    label: const Text('Gọi'),
+                Text(
+                  'Lab A6 - Dang ky hoc phan',
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(_studentText),
+                const SizedBox(height: 20),
+                TextFormField(
+                  key: const Key('nameField'),
+                  controller: _nameController,
+                  focusNode: _nameFocus,
+                  decoration: const InputDecoration(labelText: 'Ho va ten'),
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Khong duoc de trong';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('studentIdField'),
+                  controller: _studentIdController,
+                  focusNode: _studentIdFocus,
+                  decoration: const InputDecoration(
+                    labelText: 'Ma so sinh vien (10 chu so)',
+                  ),
+                  keyboardType: TextInputType.number,
+                  maxLength: 10,
+                  validator: (value) {
+                    final text = value?.trim() ?? '';
+                    if (!RegExp(r'^\d{10}$').hasMatch(text)) {
+                      return 'MSSV phai gom dung 10 chu so';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                _sectionTitle('Khoa'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  key: const Key('facultyDropdown'),
+                  initialValue: _selectedFaculty,
+                  items: _faculties.keys
+                      .map(
+                        (faculty) => DropdownMenuItem(
+                          value: faculty,
+                          child: Text(faculty),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _onFacultyChanged,
+                ),
+                const SizedBox(height: 16),
+                _sectionTitle('Hoc phan dang ky'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('courseDropdown_$_selectedFaculty'),
+                  initialValue: _selectedCourse,
+                  items: _coursesForFaculty
+                      .map(
+                        (course) => DropdownMenuItem(
+                          value: course,
+                          child: Text(course),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _selectedCourse = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                _sectionTitle('He dao tao'),
+                RadioGroup<String>(
+                  groupValue: _program,
+                  onChanged: (value) => setState(() => _program = value),
+                  child: const Column(
+                    children: [
+                      RadioListTile<String>(
+                        key: Key('regularRadio'),
+                        value: 'Chinh quy',
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Chinh quy'),
+                      ),
+                      RadioListTile<String>(
+                        key: Key('partTimeRadio'),
+                        value: 'Vua lam vua hoc',
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Vua lam vua hoc'),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('webButton'),
-                    onPressed: _openSchoolWebsite,
-                    icon: const Icon(Icons.public),
-                    label: const Text('Web trường'),
-                  ),
+                const SizedBox(height: 8),
+                _sectionTitle('Buoi hoc mong muon'),
+                CheckboxListTile(
+                  key: const Key('morningCheckbox'),
+                  value: _morning,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Sang'),
+                  onChanged: (value) =>
+                      _updateSession(() => _morning = value ?? false),
                 ),
+                CheckboxListTile(
+                  key: const Key('afternoonCheckbox'),
+                  value: _afternoon,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Chieu'),
+                  onChanged: (value) =>
+                      _updateSession(() => _afternoon = value ?? false),
+                ),
+                CheckboxListTile(
+                  key: const Key('eveningCheckbox'),
+                  value: _evening,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Toi'),
+                  onChanged: (value) =>
+                      _updateSession(() => _evening = value ?? false),
+                ),
+                Text(
+                  'Da chon $_sessionCount buoi hoc',
+                  key: const Key('sessionCountText'),
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  key: const Key('emailSwitch'),
+                  value: _emailNotification,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Nhan thong bao qua email'),
+                  onChanged: (value) =>
+                      setState(() => _emailNotification = value),
+                ),
+                SwitchListTile(
+                  key: const Key('darkModeSwitch'),
+                  value: widget.darkMode,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Che do toi'),
+                  onChanged: widget.onDarkModeChanged,
+                ),
+                const SizedBox(height: 8),
+                _sectionTitle('Che do uu tien'),
+                const SizedBox(height: 8),
+                ToggleButtons(
+                  key: const Key('priorityToggle'),
+                  isSelected: [!_priorityMode, _priorityMode],
+                  onPressed: (index) {
+                    setState(() => _priorityMode = index == 1);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  constraints: const BoxConstraints(
+                    minHeight: 44,
+                    minWidth: 120,
+                  ),
+                  children: const [Text('UU TIEN: TAT'), Text('UU TIEN: BAT')],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const Key('confirmButton'),
+                        onPressed: _confirm,
+                        icon: const Icon(Icons.check),
+                        label: const Text('Xac nhan'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: const Key('resetButton'),
+                        onPressed: _reset,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Lam lai'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 96),
               ],
             ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              key: const Key('shareButton'),
-              onPressed: _shareContact,
-              icon: const Icon(Icons.ios_share_outlined),
-              label: const Text('Chia sẻ liên hệ'),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _sectionTitle(BuildContext context, String text) {
+  Widget _sectionTitle(String text) {
     return Text(
       text,
       style: Theme.of(context).textTheme.titleMedium
@@ -309,116 +437,42 @@ class _LabA5PageState extends State<LabA5Page> {
   }
 }
 
-class DetailPage extends StatefulWidget {
-  const DetailPage({super.key, required this.contact, required this.sender});
+class ConfirmPage extends StatelessWidget {
+  const ConfirmPage({super.key, required this.registration});
 
-  // contact là dữ liệu nhận từ màn hình 1; sender giúp minh họa dữ liệu phụ đi kèm.
-  final Contact contact;
-  final String sender;
-
-  @override
-  State<DetailPage> createState() => _DetailPageState();
-}
-
-class _DetailPageState extends State<DetailPage> {
-  late final TextEditingController _updatedNameController;
-  final _updatedNameFocus = FocusNode();
-  String? _updatedNameError;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Khi màn hình 2 mở ra, ô sửa tên được điền sẵn bằng tên nhận từ màn hình 1.
-    _updatedNameController = TextEditingController(
-      text: widget.contact.fullName,
-    );
-  }
-
-  @override
-  void dispose() {
-    _updatedNameController.dispose();
-    _updatedNameFocus.dispose();
-    super.dispose();
-  }
-
-  void _saveAndReturn() {
-    final updatedName = _updatedNameController.text.trim();
-    if (updatedName.isEmpty) {
-      setState(() => _updatedNameError = 'Không được để trống');
-      _updatedNameFocus.requestFocus();
-      return;
-    }
-
-    // pop(value) đóng màn hình 2 và trả Cotact đã sửa về cho màn hình 1.
-    Navigator.of(context).pop(widget.contact.copyWith(fullName: updatedName));
-  }
-
-  void _cancel() {
-    Navigator.of(context).pop();
-  }
+  final CourseRegistration registration;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chi tiết liên hệ')),
+      appBar: AppBar(title: const Text('Xac nhan dang ky')),
       body: SafeArea(
-        child: ListView(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Chi tiết liên hệ',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Họ tên: ${widget.contact.fullName}\n'
-              'Điện thoại: ${widget.contact.phone}\n'
-              'Email: ${widget.contact.email}',
-              key: const Key('detailInfo'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Dữ liệu được gửi từ: ${widget.sender}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              key: const Key('updatedNameField'),
-              controller: _updatedNameController,
-              focusNode: _updatedNameFocus,
-              decoration: InputDecoration(
-                labelText: 'Sửa họ tên rồi bấm Lưu',
-                errorText: _updatedNameError,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Xac nhan dang ky',
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _saveAndReturn(),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    key: const Key('saveBackButton'),
-                    onPressed: _saveAndReturn,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Lưu & quay lại'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('cancelButton'),
-                    onPressed: _cancel,
-                    icon: const Icon(Icons.close),
-                    label: const Text('Hủy'),
-                  ),
-                ),
-              ],
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                registration.summary,
+                key: const Key('summaryText'),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(height: 1.45),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                key: const Key('editButton'),
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Quay lai chinh sua'),
+              ),
+            ],
+          ),
         ),
       ),
     );
